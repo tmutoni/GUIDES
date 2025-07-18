@@ -1,0 +1,229 @@
+Streamlit App Setup Guide for Future Monorepo Projects
+This guide outlines the robust steps to create a new Streamlit application within your side-projects-lab monorepo, from setting up the project structure and data pipeline to deployment on Streamlit Community Cloud.
+
+Part 1: Project Setup & Local Data Pipeline
+This section covers creating your new project folder, getting your data, and preparing it for your Streamlit app.
+
+1. Create a New Project Branch
+Always start development for a new project on a dedicated branch to keep your main branch clean.
+
+# Make sure you are in the root of your monorepo (e.g., side-projects-lab/)
+git checkout -b <your-new-project-branch-name>
+
+Example: git checkout -b wave-2-sales-forecast
+
+2. Create Your New Project Folder Structure
+Create the main folder for your new Streamlit app and its internal structure.
+
+# Still in the monorepo root
+mkdir -p <your-new-project-name>/data/raw
+mkdir <your-new-project-name>/src # Optional: for more complex app logic
+
+Example: mkdir -p sales-forecast/data/raw
+
+3. Add Boilerplate Files (Optional but Recommended)
+Copy a README.md template and create an empty app.py and requirements.txt.
+
+# Still in the monorepo root
+cp readme-templates/PROJECT_README.md <your-new-project-name>/README.md
+touch <your-new-project-name>/app.py
+echo "streamlit" > <your-new-project-name>/requirements.txt
+echo "pandas" >> <your-new-project-name>/requirements.txt
+echo "pyarrow" >> <your-new-project-name>/requirements.txt # If using Parquet
+
+Adjust PROJECT_README.md and requirements.txt content as needed.
+
+4. Download Raw Data
+Use curl to download your raw dataset into the data/raw subfolder of your new project.
+
+# Still in the monorepo root
+curl -o <your-new-project-name>/data/raw/<your-data-file.csv> <URL-to-raw-data>
+
+Example: curl -o sales-forecast/data/raw/sales_data.csv https://example.com/raw/sales_data.csv
+
+5. Create and Run Data Preparation Script (data_prep.py)
+This script will clean and transform your raw data into a clean, optimized format (e.g., Parquet) for your Streamlit app.
+
+Create the script file:
+
+# Still in the monorepo root
+cat << 'EOF' > <your-new-project-name>/data_prep.py
+
+import pandas as pd
+from pathlib import Path
+
+IMPORTANT: Adjust these paths based on your project structure
+RAW: Path to your raw data file
+RAW = Path(file).parent / "data/raw/<your-data-file.csv>"
+
+OUT: Path where the cleaned Parquet file will be saved
+OUT = Path(file).parent / "data/<your-clean-data-file.parquet>"
+
+df = pd.read_csv(RAW) # Or pd.read_excel, pd.read_json, etc.
+
+--- YOUR DATA CLEANING AND TRANSFORMATION LOGIC HERE ---
+Example:
+if 'RelevantColumn' in df.columns:
+df = df.dropna(subset=['RelevantColumn'])
+df = df.assign(new_feature=lambda d: d['RelevantColumn'] * 2)
+else:
+print("Warning: 'RelevantColumn' not found, skipping specific transformations.")
+--- END OF YOUR LOGIC ---
+df.to_parquet(OUT, index=False)
+print(f"Cleaned data saved to {OUT}")
+EOF
+```
+Example: Replace <your-new-project-name> with `sales-forecast`, `<your-data-file.csv>` with `sales_data.csv`, and `<your-clean-data-file.parquet>` with `sales_clean.parquet`.
+
+Run the data preparation script:
+This will generate your clean Parquet file.
+
+# Still in the monorepo root
+python3 <your-new-project-name>/data_prep.py
+
+Example: python3 sales-forecast/data_prep.py
+
+6. Update Your Streamlit App (app.py)
+Modify your app.py to load the cleaned data and display your dashboard.
+
+# Still in the monorepo root
+cat << 'EOF' > <your-new-project-name>/app.py
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+
+# Optional: Import custom utilities if you've created them in your 'utils' folder
+# from utils.streamlit_kpi import kpi_block
+# from utils.streamlit_collapse import collapsible_section
+
+# --- Data Loading ---
+# Path to your cleaned Parquet file relative to this app.py script
+DATA_FILE_PATH = Path(__file__).parent / "data/<your-clean-data-file.parquet>"
+
+@st.cache_data # Cache data loading for performance
+def load_app_data(file_path):
+    """Loads the cleaned dataset for the Streamlit app."""
+    st.info(f"Attempting to load data from: {file_path}")
+    try:
+        if not file_path.exists():
+            st.error(f"Error: Data file not found at {file_path}. Please ensure it's in the correct location and pushed to GitHub.")
+            st.stop()
+        df = pd.read_parquet(file_path)
+        st.success("Data loaded successfully!")
+        return df
+    except Exception as e:
+        st.error(f"An unexpected error occurred while loading data: {e}")
+        st.stop()
+
+# Load the data when the app starts
+df_app_data = load_app_data(DATA_FILE_PATH)
+
+# --- Streamlit App Content ---
+st.set_page_config(layout="wide", page_title="<Your App Title>")
+
+st.title("📊 <Your App Title>")
+st.markdown("This dashboard provides insights into your data.")
+
+if df_app_data is not None:
+    st.subheader("Dataset Overview")
+    st.write(f"Loaded {df_app_data.shape[0]} rows and {df_app_data.shape[1]} columns.")
+    st.write("First 5 rows:")
+    st.dataframe(df_app_data.head())
+    st.write("Descriptive Statistics:")
+    st.dataframe(df_app_data.describe())
+else:
+    st.warning("Data could not be loaded. Please check the file path and ensure the data file is committed to your repository.")
+
+st.markdown("---")
+st.caption("Built with Streamlit")
+EOF
+
+Example: Replace <your-new-project-name> with sales-forecast, <your-clean-data-file.parquet> with sales_clean.parquet, and <Your App Title> with Sales Forecast Dashboard.
+
+Part 2: Git Workflow & Deployment
+Once your local project structure and data pipeline are ready, commit and deploy!
+
+1. Stage All New/Modified Files
+# Still in the monorepo root
+git add <your-new-project-name>/
+
+Example: git add sales-forecast/
+
+2. Commit Your Changes
+# Still in the monorepo root
+git commit -m "feat(<your-project-name>): Initial app scaffold with data pipeline"
+
+Example: git commit -m "feat(sales-forecast): Initial app scaffold with data pipeline"
+
+3. Push Your New Branch to GitHub
+# Still in the monorepo root
+git push -u origin <your-new-project-branch-name>
+
+Example: git push -u origin wave-2-sales-forecast
+
+4. Deploy on Streamlit Community Cloud
+Go to share.streamlit.io and log in with GitHub.
+
+Click "New app".
+
+Repository: Select your-handle/side-projects-lab.
+
+Branch: Select <your-new-project-branch-name> (or main if you've merged).
+
+Main file path: Enter the full path to your app, e.g., <your-new-project-name>/app.py.
+Example: sales-forecast/app.py
+
+Advanced settings (Optional): Add any environment variables your app needs (e.g., API keys, custom configs) in TOML format:
+
+MY_API_KEY="your_secret_key_here"
+APP_CONFIG_SETTING="value"
+
+Click "Deploy!". Streamlit Cloud will automatically build and deploy your app, and auto-deploy on subsequent pushes to the selected branch.
+
+Part 3: Common Troubleshooting Tips
+Keep these in mind if you encounter issues.
+
+Terminal Issues (zsh: command not found, quote>, zsh: event not found: !)
+wget not found: Use curl -o <output_filename> <URL> instead.
+
+python not found: Use python3 instead.
+
+quote> or zsh: event not found: !:
+
+Press Ctrl + C to exit the current prompt.
+
+When using echo for multi-line content, ensure all lines are standard ASCII characters.
+
+Most reliable: Use the "here document" method (cat << 'EOF' > filename ... EOF) for writing multi-line script content. This avoids shell interpretation issues.
+
+Python Environment Issues (ModuleNotFoundError)
+Problem: Your local Python interpreter can't find installed libraries (e.g., pandas).
+
+Solution: Install dependencies locally.
+
+pip3 install pandas pyarrow # Add all libraries from your requirements.txt
+
+PATH issues: If executables (like streamlit or pip itself) aren't found, ensure your Python's bin directory is in your shell's PATH environment variable (e.g., export PATH="/Users/yourusername/Library/Python/3.9/bin:$PATH" in ~/.zshrc, then source ~/.zshrc).
+
+Streamlit Cloud Deployment Errors
+"File not found" (404 on GitHub, or Streamlit Cloud error):
+
+Verify file existence locally: ls -lh <path/to/file>.
+
+Verify file content: head <path/to/file>.
+
+Ensure file is committed and pushed: git status should be clean, and git push should be successful. Check GitHub directly to confirm the file is visible and has content.
+
+Double-check Main file path on Streamlit Cloud: It must be exact, relative to the repository root (e.g., my-project/app.py).
+
+AttributeError or KeyError in data_prep.py or app.py:
+
+Problem: You're trying to access a column that doesn't exist in your actual dataset.
+
+Solution:
+
+Inspect your raw data's columns: python3 -c "import pandas as pd; print(pd.read_csv('<your-project-name>/data/raw/<your-data-file.csv>').columns.tolist())"
+
+Adjust your data_prep.py and app.py code to use the correct column names. Use df.get('ColumnName', default_value) or if 'ColumnName' in df.columns: for robustness.
+
+By following these steps and referring to the troubleshooting section, you should be well-equipped to launch many more Streamlit apps in your monorepo!
